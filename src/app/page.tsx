@@ -1,12 +1,11 @@
-"use client"
+"use client";
 
-import type React from "react"
-
-import { useState, useRef, useEffect } from "react"
-import AudioVisualizer from "../components/AudioVisualizer"
-import FilterControls from "../components/FilterControls"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { useState, useRef, useEffect, useCallback } from "react";
+import type React from "react";
+import AudioVisualizer from "@/components/AudioVisualizer";
+import FilterControls from "@/components/FilterControls";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   applyTimeStretch,
   applyPitchShift,
@@ -14,147 +13,147 @@ import {
   applyNoiseGate,
   applyCompression,
   applyEQ,
-} from "../utils/audioEffects"
+} from "@/utils/audioEffects";
 
 export default function Home() {
-  const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null)
-  const [processedBuffer, setProcessedBuffer] = useState<AudioBuffer | null>(null)
-  const audioContextRef = useRef<AudioContext | null>(null)
-  const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null)
-  const gainNodeRef = useRef<GainNode | null>(null)
+  const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
+  const [processedBuffer, setProcessedBuffer] = useState<AudioBuffer | null>(null);
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
+  const gainNodeRef = useRef<GainNode | null>(null);
 
   useEffect(() => {
-    audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)()
-    gainNodeRef.current = audioContextRef.current.createGain()
-    gainNodeRef.current.connect(audioContextRef.current.destination)
-    return () => {
-      if (audioContextRef.current) {
-        audioContextRef.current.close()
-      }
-    }
-  }, [])
+    const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+    audioContextRef.current = new AudioContextClass();
+    gainNodeRef.current = audioContextRef.current.createGain();
+    gainNodeRef.current.connect(audioContextRef.current.destination);
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
+    return () => {
+      audioContextRef.current?.close().catch(() => null);
+    };
+  }, []);
+
+  const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
     if (file && audioContextRef.current) {
-      const arrayBuffer = await file.arrayBuffer()
-      const decodedBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer)
-      setAudioBuffer(decodedBuffer)
-      setProcessedBuffer(decodedBuffer)
+      const arrayBuffer = await file.arrayBuffer();
+      const decodedBuffer = await audioContextRef.current.decodeAudioData(arrayBuffer);
+      setAudioBuffer(decodedBuffer);
+      setProcessedBuffer(decodedBuffer);
     }
-  }
+  }, []);
 
   const applyFilter = (filterType: string, frequency: number) => {
-    if (!audioBuffer || !audioContextRef.current) return
+    if (!audioBuffer || !audioContextRef.current) return;
 
     const offlineContext = new OfflineAudioContext(
       audioBuffer.numberOfChannels,
       audioBuffer.length,
-      audioBuffer.sampleRate,
-    )
+      audioBuffer.sampleRate
+    );
 
-    const source = offlineContext.createBufferSource()
-    source.buffer = processedBuffer || audioBuffer
+    const source = offlineContext.createBufferSource();
+    source.buffer = processedBuffer || audioBuffer;
 
-    const filter = offlineContext.createBiquadFilter()
-    filter.type = filterType as BiquadFilterType
-    filter.frequency.value = frequency
+    const filter = offlineContext.createBiquadFilter();
+    filter.type = filterType as BiquadFilterType; // ✅ Fixed: Explicitly cast string to BiquadFilterType
+    filter.frequency.value = frequency;
 
-    source.connect(filter)
-    filter.connect(offlineContext.destination)
+    source.connect(filter);
+    filter.connect(offlineContext.destination);
 
-    source.start()
+    source.start();
 
     offlineContext.startRendering().then((renderedBuffer) => {
-      setProcessedBuffer(renderedBuffer)
-    })
-  }
+      setProcessedBuffer(renderedBuffer);
+    });
+  };
 
   const applyEffect = async (effectType: string, value: number | number[]) => {
-    if (!audioBuffer || !audioContextRef.current) return
+    if (!audioBuffer || !audioContextRef.current) return;
 
-    let newBuffer: AudioBuffer | null = null
+    let newBuffer: AudioBuffer | null = null;
 
     switch (effectType) {
       case "timeStretch":
-        newBuffer = await applyTimeStretch(audioContextRef.current, processedBuffer || audioBuffer, value as number)
-        break
+        newBuffer = await applyTimeStretch(audioContextRef.current, processedBuffer || audioBuffer, value as number);
+        break;
       case "pitchShift":
-        newBuffer = await applyPitchShift(audioContextRef.current, processedBuffer || audioBuffer, value as number)
-        break
+        newBuffer = await applyPitchShift(audioContextRef.current, processedBuffer || audioBuffer, value as number);
+        break;
       case "reverb":
-        newBuffer = await applyReverb(audioContextRef.current, processedBuffer || audioBuffer, value as number)
-        break
+        newBuffer = await applyReverb(audioContextRef.current, processedBuffer || audioBuffer, value as number);
+        break;
       case "noiseGate":
-        newBuffer = await applyNoiseGate(audioContextRef.current, processedBuffer || audioBuffer, value as number)
-        break
+        newBuffer = await applyNoiseGate(audioContextRef.current, processedBuffer || audioBuffer, value as number);
+        break;
       case "compression":
-        newBuffer = await applyCompression(audioContextRef.current, processedBuffer || audioBuffer, value as number)
-        break
+        newBuffer = await applyCompression(audioContextRef.current, processedBuffer || audioBuffer, value as number);
+        break;
       case "eq":
-        newBuffer = await applyEQ(audioContextRef.current, processedBuffer || audioBuffer, value as number[])
-        break
+        newBuffer = await applyEQ(audioContextRef.current, processedBuffer || audioBuffer, value as number[]);
+        break;
       case "volume":
         if (gainNodeRef.current) {
-          gainNodeRef.current.gain.setValueAtTime(value as number, audioContextRef.current.currentTime)
+          gainNodeRef.current.gain.setValueAtTime(value as number, audioContextRef.current.currentTime);
         }
-        return
+        return;
       default:
-        console.error("Unknown effect type:", effectType)
-        return
+        console.error("Unknown effect type:", effectType);
+        return;
     }
 
     if (newBuffer) {
-      setProcessedBuffer(newBuffer)
+      setProcessedBuffer(newBuffer);
     }
-  }
+  };
 
-  const playAudio = () => {
+  const playAudio = async () => {
     if (processedBuffer && audioContextRef.current && gainNodeRef.current) {
+      await audioContextRef.current.resume(); // Ensure audio context is active
       if (sourceNodeRef.current) {
-        sourceNodeRef.current.stop()
+        sourceNodeRef.current.stop();
       }
-      sourceNodeRef.current = audioContextRef.current.createBufferSource()
-      sourceNodeRef.current.buffer = processedBuffer
-      sourceNodeRef.current.connect(gainNodeRef.current)
-      sourceNodeRef.current.start()
+      const newSource = audioContextRef.current.createBufferSource();
+      newSource.buffer = processedBuffer;
+      newSource.connect(gainNodeRef.current);
+      newSource.start();
+      sourceNodeRef.current = newSource;
     }
-  }
+  };
 
   const stopAudio = () => {
-    if (sourceNodeRef.current) {
-      sourceNodeRef.current.stop()
-    }
-  }
+    sourceNodeRef.current?.stop();
+  };
 
   const downloadProcessedAudio = () => {
     if (processedBuffer && audioContextRef.current) {
       const offlineContext = new OfflineAudioContext(
         processedBuffer.numberOfChannels,
         processedBuffer.length,
-        processedBuffer.sampleRate,
-      )
+        processedBuffer.sampleRate
+      );
 
-      const source = offlineContext.createBufferSource()
-      source.buffer = processedBuffer
-      source.connect(offlineContext.destination)
-      source.start()
+      const source = offlineContext.createBufferSource();
+      source.buffer = processedBuffer;
+      source.connect(offlineContext.destination);
+      source.start();
 
       offlineContext.startRendering().then((renderedBuffer) => {
-        const wav = bufferToWav(renderedBuffer)
-        const blob = new Blob([wav], { type: "audio/wav" })
-        const url = URL.createObjectURL(blob)
-        const a = document.createElement("a")
-        a.style.display = "none"
-        a.href = url
-        a.download = "processed_audio.wav"
-        document.body.appendChild(a)
-        a.click()
-        document.body.removeChild(a)
-        URL.revokeObjectURL(url)
-      })
+        const wav = bufferToWav(renderedBuffer);
+        const blob = new Blob([wav], { type: "audio/wav" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.style.display = "none";
+        a.href = url;
+        a.download = "processed_audio.wav";
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+      });
     }
-  }
+  };
 
   return (
     <main className="container mx-auto p-4">
@@ -173,62 +172,45 @@ export default function Home() {
         </>
       )}
     </main>
-  )
+  );
 }
 
 // Helper function to convert AudioBuffer to WAV format
-function bufferToWav(buffer: AudioBuffer) {
-  const numOfChan = buffer.numberOfChannels
-  const length = buffer.length * numOfChan * 2 + 44
-  const out = new ArrayBuffer(length)
-  const view = new DataView(out)
-  const channels = []
-  let sample
-  let offset = 0
-  let pos = 0
+function bufferToWav(buffer: AudioBuffer): Uint8Array {
+  const numChannels = buffer.numberOfChannels;
+  const length = buffer.length * numChannels * 2 + 44;
+  const outputBuffer = new ArrayBuffer(length);
+  const view = new DataView(outputBuffer);
 
-  // write WAVE header
-  setUint32(0x46464952) // "RIFF"
-  setUint32(length - 8) // file length - 8
-  setUint32(0x45564157) // "WAVE"
-
-  setUint32(0x20746d66) // "fmt " chunk
-  setUint32(16) // length = 16
-  setUint16(1) // PCM (uncompressed)
-  setUint16(numOfChan)
-  setUint32(buffer.sampleRate)
-  setUint32(buffer.sampleRate * 2 * numOfChan) // avg. bytes/sec
-  setUint16(numOfChan * 2) // block-align
-  setUint16(16) // 16-bit (hardcoded in this demo)
-
-  setUint32(0x61746164) // "data" - chunk
-  setUint32(length - pos - 4) // chunk length
-
-  // write interleaved data
-  for (let i = 0; i < buffer.numberOfChannels; i++) {
-    channels.push(buffer.getChannelData(i))
-  }
-
-  while (pos < length) {
-    for (let i = 0; i < numOfChan; i++) {
-      // interleave channels
-      sample = Math.max(-1, Math.min(1, channels[i][offset])) // clamp
-      view.setInt16(pos, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true)
-      pos += 2
+  const writeString = (str: string, offset: number) => {
+    for (let i = 0; i < str.length; i++) {
+      view.setUint8(offset + i, str.charCodeAt(i));
     }
-    offset++ // next source sample
+  };
+
+  writeString("RIFF", 0);
+  view.setUint32(4, length - 8, true);
+  writeString("WAVE", 8);
+  writeString("fmt ", 12);
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, numChannels, true);
+  view.setUint32(24, buffer.sampleRate, true);
+  view.setUint32(28, buffer.sampleRate * numChannels * 2, true);
+  view.setUint16(32, numChannels * 2, true);
+  view.setUint16(34, 16, true);
+  writeString("data", 36);
+  view.setUint32(40, length - 44, true);
+
+  let offset = 44;
+  for (let channel = 0; channel < numChannels; channel++) {
+    const channelData = buffer.getChannelData(channel);
+    for (let i = 0; i < buffer.length; i++) {
+      const sample = Math.max(-1, Math.min(1, channelData[i]));
+      view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+      offset += 2;
+    }
   }
 
-  function setUint16(data: number) {
-    view.setUint16(pos, data, true)
-    pos += 2
-  }
-
-  function setUint32(data: number) {
-    view.setUint32(pos, data, true)
-    pos += 4
-  }
-
-  return new Uint8Array(out)
+  return new Uint8Array(outputBuffer);
 }
-
